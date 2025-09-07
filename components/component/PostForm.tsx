@@ -1,27 +1,24 @@
 "use client";
+
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { SendIcon } from "./Icons";
-import { useRef, useState } from "react";
+import { useFormState } from "react-dom";
+import SubmitButton from "./SubmitButton";
 import { addPostAction, type AddPostResult } from "@/lib/actions";
+import { useRef } from "react";
+
+const initialState: AddPostResult = { success: false, error: "" };
 
 export default function PostForm() {
-  const [error, setError] = useState<string>("");
+  // useFormState は (prevState, formData) => State の関数を受け取る
+  const [state, formAction] = useFormState(addPostAction, initialState);
+
   const formRef = useRef<HTMLFormElement>(null);
 
-  const handleSubmit = async (formData: FormData) => {
-    const result: AddPostResult = await addPostAction(formData);
-
-    if (!result.success) {
-      setError(result.error); // ← ここで表示用の state に格納
-      return; // Promise<void> を満たす
-    }
-
-    // 成功時
-    setError("");
-    formRef.current?.reset();
-  };
+  if (state.success && formRef.current) {
+    // 投稿成功したらテキストをクリアする
+    formRef.current.reset();
+  }
 
   return (
     <div>
@@ -31,9 +28,10 @@ export default function PostForm() {
           <AvatarFallback>AC</AvatarFallback>
         </Avatar>
 
+        {/* Server Action を直接 action に渡す */}
         <form
           ref={formRef}
-          action={handleSubmit}
+          action={formAction}
           className="flex flex-1 items-center"
         >
           <Input
@@ -43,14 +41,13 @@ export default function PostForm() {
             className="flex-1 rounded-full bg-muted px-4 py-2"
             maxLength={140}
           />
-          <Button variant="ghost" size="icon" type="submit">
-            <SendIcon className="h-5 w-5 text-muted-foreground" />
-            <span className="sr-only">Tweet</span>
-          </Button>
+          <SubmitButton />
         </form>
       </div>
-      {/* ここにバリデーションメッセージが出る */}
-      {error && <p className="text-destructive mt-2 ml-14">{error}</p>}
+      {/* バリデーションや保存エラーをここに表示 */}
+      {!state.success && state.error && (
+        <p className="text-destructive mt-2 ml-14">{state.error}</p>
+      )}
     </div>
   );
 }
