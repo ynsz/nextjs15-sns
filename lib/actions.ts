@@ -4,6 +4,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import prisma from "./prisma";
+import { revalidatePath } from "next/cache";
 
 export type AddPostResult =
   | { success: true; error?: undefined }
@@ -34,7 +35,7 @@ export async function addPostAction(
       };
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 3000)); // デバッグ用に3秒待つ
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // デバッグ用に3秒待つ
 
     // Clerk の userId → DB の User.id（cuid）を引く（FK対策）
     const dbUser = await prisma.user.findUnique({
@@ -46,6 +47,8 @@ export async function addPostAction(
     await prisma.post.create({
       data: { content: parsed.data, authorId: dbUser.id },
     });
+
+    revalidatePath("/");
 
     return { success: true };
   } catch (e) {
