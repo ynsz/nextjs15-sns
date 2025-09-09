@@ -58,3 +58,29 @@ export async function addPostAction(
     };
   }
 }
+
+export async function likeAction(postId: string) {
+  const { userId: clerkUserId } = auth();
+  if (!clerkUserId) throw new Error("Not signed in");
+
+  // Clerk の userId → DB の User.id に変換
+  const me = await prisma.user.findUnique({
+    where: { clerkId: clerkUserId },
+    select: { id: true },
+  });
+  if (!me) throw new Error("User not found in DB");
+
+  const existingLikes = await prisma.like.findFirst({
+    where: { postId, userId: me.id },
+  });
+
+  if (existingLikes) {
+    await prisma.like.delete({ where: { id: existingLikes.id } });
+  } else {
+    await prisma.like.create({
+      data: { postId, userId: me.id },
+    });
+  }
+
+  revalidatePath("/");
+}
