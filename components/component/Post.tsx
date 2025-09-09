@@ -2,8 +2,18 @@ import React from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ClockIcon } from "./Icons";
 import PostInteraction from "./PostInteraction";
+import { auth } from "@clerk/nextjs/server";
+import prisma from "@/lib/prisma";
 
-const Post = ({ post }: any) => {
+const Post = async ({ post }: any) => {
+  const { userId: clerkUserId } = auth();
+  const me = clerkUserId
+    ? await prisma.user.findUnique({
+        where: { clerkId: clerkUserId },
+        select: { id: true },
+      })
+    : null;
+
   return (
     <div
       key={post.id}
@@ -34,6 +44,7 @@ const Post = ({ post }: any) => {
             postId={post.id}
             initialLikes={post.likes.map((like: any) => like.userId)}
             commentNumber={post._count.replies}
+            meId={me?.id ?? null}
           />
         </div>
         <div className="flex items-center gap-2 text-muted-foreground">
