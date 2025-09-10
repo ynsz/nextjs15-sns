@@ -1,12 +1,12 @@
 // components/PostList.tsx
 import { unstable_noStore as noStore } from "next/cache";
-import { fetchMyPosts } from "@/lib/postDataFetcher";
+import { fetchTimelinePosts } from "@/lib/postDataFetcher";
 import Post from "./Post";
 
 export default async function PostList() {
   noStore(); // 投稿直後も反映
 
-  const posts = await fetchMyPosts();
+  const posts = await fetchTimelinePosts();
 
   return (
     <div className="space-y-4">

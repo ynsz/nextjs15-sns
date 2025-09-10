@@ -4,6 +4,7 @@ import { ClockIcon } from "./Icons";
 import PostInteraction from "./PostInteraction";
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import Link from "next/link";
 
 const Post = async ({ post }: any) => {
   const { userId: clerkUserId } = auth();
@@ -20,12 +21,14 @@ const Post = async ({ post }: any) => {
       className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4"
     >
       <div className="flex items-center gap-4 mb-4">
-        <Avatar className="w-10 h-10">
-          <AvatarImage src={post.author.image ?? "/placeholder-user.jpg"} />
-          <AvatarFallback>
-            {(post.author.name ?? "U").slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <Link href={`/profile/${post.author.name}`}>
+          <Avatar className="w-10 h-10">
+            <AvatarImage src={post.author.image ?? "/placeholder-user.jpg"} />
+            <AvatarFallback>
+              {(post.author.name ?? "U").slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </Link>
         <div>
           <h3 className="text-lg font-bold">{post.author.name ?? "No Name"}</h3>
           <p className="text-muted-foreground">

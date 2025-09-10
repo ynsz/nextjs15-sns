@@ -1,11 +1,20 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import prisma from "@/lib/prisma";
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  params,
+}: {
+  params: { username: string };
+}) {
+  const username = params.username;
+
+  // const user = await prisma.user.findUnique();
+
   return (
     <div className="flex flex-col min-h-[100dvh]">
       <main className="flex-1">
-        <div className="container py-6 md:py-10 lg:py-12">
+        <div className="container py-6 md:py-10 lg:py-12 mx-auto">
           <div className="grid gap-6 md:grid-cols-[1fr_300px]">
             <div>
               <div className="flex items-center gap-6">
