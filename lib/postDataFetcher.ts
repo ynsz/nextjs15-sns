@@ -12,28 +12,52 @@ export type PostItem = Prisma.PostGetPayload<{
   };
 }>;
 
-/** タイムライン用：自分＋フォロー中ユーザーの投稿（未ログイン時は空配列） */
-export async function fetchTimelinePosts(): Promise<PostItem[]> {
+/** タイムライン用：
+ *  - ホーム：自分＋フォロー中ユーザーの投稿
+ *  - プロフィール：指定 username のユーザーの投稿のみ
+ *  - 未ログイン時は空配列
+ */
+export async function fetchTimelinePosts(
+  username?: string
+): Promise<PostItem[]> {
   const { userId: clerkUserId } = auth();
   if (!clerkUserId) return [];
 
-  // 1) ClerkのID → アプリのUser.id（cuid）に解決
+  // Clerk のID → アプリの User.id
   const me = await prisma.user.findUnique({
     where: { clerkId: clerkUserId },
     select: { id: true },
   });
   if (!me) return [];
 
-  // 2) Followは「アプリのUser.id」を見る
+  // --- プロフィールタイムライン（そのユーザーの投稿だけ） ---
+  if (username) {
+    const profileUser = await prisma.user.findUnique({
+      where: { username }, // username はユニーク想定
+      select: { id: true },
+    });
+    if (!profileUser) return [];
+
+    return prisma.post.findMany({
+      where: { authorId: profileUser.id },
+      include: {
+        author: { select: { name: true, username: true, image: true } },
+        likes: { select: { userId: true } },
+        _count: { select: { replies: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  // --- ホームタイムライン（自分＋フォロー中） ---
   const following = await prisma.follow.findMany({
-    where: { followerId: me.id }, // ← ここを clerkUserId ではなく me.id に
+    where: { followerId: me.id }, // 自分がフォローしている先
     select: { followingId: true },
   });
 
-  // 自分の投稿も含めたいので me.id を先頭に
+  // 自分の投稿も含める
   const authorIds = [me.id, ...following.map((f) => f.followingId)];
 
-  // 3) 自分 + フォロー中ユーザーの投稿を新しい順で取得
   return prisma.post.findMany({
     where: { authorId: { in: authorIds } },
     include: {

@@ -1,6 +1,8 @@
+import PostList from "@/components/component/PostList";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
+import { notFound } from "next/navigation";
 
 export default async function ProfilePage({
   params,
@@ -9,7 +11,24 @@ export default async function ProfilePage({
 }) {
   const username = params.username;
 
-  // const user = await prisma.user.findUnique();
+  const user = await prisma.user.findUnique({
+    where: {
+      username: username, // ← name ではなく username
+    },
+    include: {
+      _count: {
+        select: {
+          followedBy: true,
+          following: true,
+          posts: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    notFound();
+  }
 
   return (
     <div className="flex flex-col min-h-[100dvh]">
@@ -20,14 +39,14 @@ export default async function ProfilePage({
               <div className="flex items-center gap-6">
                 <Avatar className="w-24 h-24 mb-4 md:mb-0">
                   <AvatarImage
-                    src={"/placeholder-user.jpg"}
+                    src={user.image || "/placeholder-user.jpg"}
                     alt="Acme Inc Profile"
                   />
                   <AvatarFallback>AI</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h1 className="text-3xl font-bold">SampleUser</h1>
-                  <div className="text-muted-foreground">@SampleUser</div>
+                  <h1 className="text-3xl font-bold">{user.name}</h1>
+                  <div className="text-muted-foreground">@{user.username}</div>
                 </div>
               </div>
 
@@ -43,21 +62,25 @@ export default async function ProfilePage({
               </div>
               <div className="mt-6 flex items-center gap-6">
                 <div className="flex flex-col items-center">
-                  <div className="text-2xl font-bold">10</div>
+                  <div className="text-2xl font-bold">{user._count.posts}</div>
                   <div className="text-muted-foreground">Posts</div>
                 </div>
                 <div className="flex flex-col items-center">
-                  <div className="text-2xl font-bold">300</div>
+                  <div className="text-2xl font-bold">
+                    {user._count.followedBy}
+                  </div>
                   <div className="text-muted-foreground">Followers</div>
                 </div>
                 <div className="flex flex-col items-center">
-                  <div className="text-2xl font-bold">100</div>
+                  <div className="text-2xl font-bold">
+                    {user._count.following}
+                  </div>
                   <div className="text-muted-foreground">Following</div>
                 </div>
               </div>
 
               <div className="mt-6 h-[500px] overflow-y-auto">
-                Time Line Here
+                <PostList username={username} />
               </div>
             </div>
             <div className="sticky top-14 self-start space-y-6">
