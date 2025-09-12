@@ -1,8 +1,11 @@
+import FollowButton from "@/components/component/FollowButton";
 import PostList from "@/components/component/PostList";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 import { notFound } from "next/navigation";
+import { followAction } from "@/lib/actions";
 
 export default async function ProfilePage({
   params,
@@ -11,10 +14,23 @@ export default async function ProfilePage({
 }) {
   const username = params.username;
 
+  const { userId: clerkUserId } = auth();
+  if (!clerkUserId) {
+    return notFound();
+  }
+
+  // ClerkのID → アプリのUser.id（cuid）に解決
+  const me = await prisma.user.findUnique({
+    where: { clerkId: clerkUserId },
+    select: { id: true },
+  });
+  if (!me) {
+    return notFound();
+  }
+
+  // 表示対象ユーザー取得
   const user = await prisma.user.findUnique({
-    where: {
-      username: username, // ← name ではなく username
-    },
+    where: { username },
     include: {
       _count: {
         select: {
@@ -23,11 +39,24 @@ export default async function ProfilePage({
           posts: true,
         },
       },
+      followedBy: {
+        where: { followerId: me.id },
+        select: { followerId: true },
+      },
     },
   });
-
   if (!user) {
-    notFound();
+    return notFound();
+  }
+
+  const targetUserId = user.id;
+
+  const isCurrentUser = user.clerkId === clerkUserId;
+  const isFollowing = user.followedBy.length > 0;
+
+  async function toggleFollow(_fd: FormData) {
+    "use server";
+    await followAction(targetUserId);
   }
 
   return (
@@ -36,20 +65,28 @@ export default async function ProfilePage({
         <div className="container py-6 md:py-10 lg:py-12 mx-auto">
           <div className="grid gap-6 md:grid-cols-[1fr_300px]">
             <div>
+              {/* プロフィールヘッダー */}
               <div className="flex items-center gap-6">
                 <Avatar className="w-24 h-24 mb-4 md:mb-0">
                   <AvatarImage
                     src={user.image || "/placeholder-user.jpg"}
-                    alt="Acme Inc Profile"
+                    alt={user.name || user.username}
                   />
-                  <AvatarFallback>AI</AvatarFallback>
+                  <AvatarFallback>
+                    {(user.name ?? user.username ?? "U")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h1 className="text-3xl font-bold">{user.name}</h1>
+                  <h1 className="text-3xl font-bold">
+                    {user.name ?? user.username}
+                  </h1>
                   <div className="text-muted-foreground">@{user.username}</div>
                 </div>
               </div>
 
+              {/* プロフィール補足（場所・リンクなど） */}
               <div className="mt-4 flex items-center gap-4 text-muted-foreground">
                 <div>
                   <MapPinIcon className="w-4 h-4 mr-1 inline" />
@@ -60,6 +97,8 @@ export default async function ProfilePage({
                   xxxxxx.com
                 </div>
               </div>
+
+              {/* 投稿/フォロワー数など */}
               <div className="mt-6 flex items-center gap-6">
                 <div className="flex flex-col items-center">
                   <div className="text-2xl font-bold">{user._count.posts}</div>
@@ -79,12 +118,19 @@ export default async function ProfilePage({
                 </div>
               </div>
 
+              {/* 投稿リスト */}
               <div className="mt-6 h-[500px] overflow-y-auto">
                 <PostList username={username} />
               </div>
             </div>
+
+            {/* サイドバー */}
             <div className="sticky top-14 self-start space-y-6">
-              <Button className="w-full">Follow</Button>
+              <FollowButton
+                isCurrentUser={isCurrentUser}
+                isFollowing={isFollowing}
+                toggleFollowAction={toggleFollow}
+              />
               <div>
                 <h3 className="text-lg font-bold">Suggested</h3>
                 <div className="mt-4 space-y-4">
@@ -103,36 +149,7 @@ export default async function ProfilePage({
                       <PlusIcon className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src="/placeholder-user.jpg" />
-                      <AvatarFallback>AC</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">Acme Inc</div>
-                      <div className="text-muted-foreground text-sm">
-                        @acmeinc
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="icon" className="ml-auto">
-                      <PlusIcon className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src="/placeholder-user.jpg" />
-                      <AvatarFallback>AC</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">Acme Inc</div>
-                      <div className="text-muted-foreground text-sm">
-                        @acmeinc
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="icon" className="ml-auto">
-                      <PlusIcon className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  {/* ...必要ならサジェスト追加 */}
                 </div>
               </div>
             </div>
@@ -162,7 +179,6 @@ function LinkIcon(props: any) {
     </svg>
   );
 }
-
 function MapPinIcon(props: any) {
   return (
     <svg
@@ -182,7 +198,6 @@ function MapPinIcon(props: any) {
     </svg>
   );
 }
-
 function PlusIcon(props: any) {
   return (
     <svg

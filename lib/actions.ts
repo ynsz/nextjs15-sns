@@ -84,3 +84,62 @@ export async function likeAction(postId: string) {
 
   revalidatePath("/");
 }
+
+export const followAction = async (targetUserId: string) => {
+  const { userId: clerkUserId } = auth();
+  if (!clerkUserId) throw new Error("Not signed in");
+
+  // Clerk → DB の自分のIDに解決
+  const me = await prisma.user.findUnique({
+    where: { clerkId: clerkUserId },
+    select: { id: true, username: true },
+  });
+  if (!me) throw new Error("User not found in DB");
+
+  if (me.id === targetUserId) {
+    throw new Error("自分自身はフォローできません。");
+  }
+
+  // 対象ユーザー（usernameをrevalidateで使う）
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, username: true },
+  });
+  if (!target) throw new Error("Target user not found");
+
+  // 既存フォロー有無（※ すべて DBのUser.id で判定）
+  const existing = await prisma.follow.findUnique({
+    where: {
+      followerId_followingId: {
+        followerId: me.id,
+        followingId: target.id,
+      },
+    },
+  });
+
+  if (existing) {
+    // アンフォロー
+    await prisma.follow.delete({
+      where: {
+        followerId_followingId: {
+          followerId: me.id,
+          followingId: target.id,
+        },
+      },
+    });
+  } else {
+    // フォロー
+    await prisma.follow.create({
+      data: {
+        followerId: me.id,
+        followingId: target.id,
+      },
+    });
+  }
+
+  // プロフィールは username でルーティングしている想定
+  if (target.username) revalidatePath(`/profile/${target.username}`);
+  if (me.username) revalidatePath(`/profile/${me.username}`);
+  // タイムラインも更新したいなら
+  revalidatePath("/");
+};
